@@ -1,7 +1,6 @@
 import React from 'react';
 import {
     WebView,
-    Text,
     View,
     Dimensions,
     StyleSheet
@@ -11,7 +10,7 @@ const win = Dimensions.get('window');
 const path = '../highcharts-files/';
 const highchartsLayout = require('../highcharts-layout/index.html');
 
-export default class HighchartsReactNative extends React.PureComponent {
+export default class HighchartsReactNative extends React.Component {
     constructor(props) {
         super(props);
 
@@ -21,7 +20,8 @@ export default class HighchartsReactNative extends React.PureComponent {
         this.state = {
             width: userStyles.width || win.width,
             height: userStyles.height || win.height,
-            chartOptions: this.props.options
+            chartOptions: this.props.options,
+            shouldUpdateZoom: this.props.shouldUpdateZoom,
         };
 
         // create script tag and apply all references
@@ -35,12 +35,31 @@ export default class HighchartsReactNative extends React.PureComponent {
             });
         });
     }
+
     componentDidUpdate() {
         // send options for chart.update() as string to webview
         this.webView.postMessage(
             this.serialize(this.props.options, true)
         );
     }
+
+    shouldComponentUpdate(nextProps) {
+        const postMessage = this.webView.postMessage;
+        if (nextProps.shouldUpdateSeries !== this.props.shouldUpdateSeries) {
+          const payload = { command: 'updateSerie', data: nextProps.data };
+          postMessage(
+              JSON.stringify(payload)
+          );
+        }
+        if (nextProps.shouldUpdateZoom) {
+          const payload = { command: 'applyZoom', min: nextProps.min, max: nextProps.max };
+          postMessage(
+            JSON.stringify(payload)
+          );
+        }
+        return false;
+    }
+
     /**
      * Convert JSON to string. When is updated, functions (like events.load) 
      * is not wrapped in quotes.
@@ -89,24 +108,17 @@ export default class HighchartsReactNative extends React.PureComponent {
             var modules = ${this.serialize(this.props.modules) || '[]'},
                 moduleCounter = modules.length,
                 hcScript;
-
             hcScript = document.createElement('script');
-
             hcScript.setAttribute('src', '${path}highcharts.js');
             hcScript.onload = function() {
-
                 if (moduleCounter === 0) {
                     ${highchartsInit}
                 } else {
                     modules.forEach(function(scr) {
-
                         var moduleScript = document.createElement('script');
-
                         moduleScript.setAttribute('src', '${path}' + scr + '.js');
                         moduleScript.onload = function() {
-
                             moduleCounter--;
-
                             if (moduleCounter === 0) {
                               ${highchartsInit}
                             }
@@ -136,6 +148,7 @@ export default class HighchartsReactNative extends React.PureComponent {
                 domStorageEnabled={true}
                 scalesPageToFit={true}
                 scrollEnabled={false}
+                onMessage={this.props.onMessage}
                 mixedContentMode='always'
             />
         </View>;
